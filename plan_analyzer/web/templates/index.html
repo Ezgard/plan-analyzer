@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Анализ учебных планов и дисциплин</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+
+    <!-- Верхняя навигационная панель -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-sky-600 flex items-center justify-center text-white font-bold text-xl shadow">
+                    УП
+                </div>
+                <div>
+                    <h1 class="text-lg font-semibold text-slate-900 leading-tight">Анализатор учебных планов и дисциплин</h1>
+                    <p class="text-xs text-slate-500">Дисциплина как единица анализа • Преподаватели • Отрасли • Коллизии кафедр</p>
+                </div>
+            </div>
+
+            <!-- Верхний блок действий и сводки -->
+            <div class="flex items-center space-x-3 text-xs">
+                <button onclick="loadDemoPlans()" id="btn-load-demo-header" class="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 font-semibold rounded-lg border border-sky-300 transition flex items-center space-x-1.5" title="Быстро загрузить демонстрационные планы из demo_plans">
+                    <svg class="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <span>Демо-планы</span>
+                </button>
+                <button onclick="openRegistryModal()" id="btn-open-registry-header" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg border border-slate-300 transition flex items-center space-x-1.5">
+                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                    <span>Справочники (Преподаватели / Отрасли)</span>
+                </button>
+                <a href="/api/export/excel" target="_blank" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold rounded-lg border border-emerald-300 transition flex items-center space-x-1.5">
+                    <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    <span>Экспорт в Excel (.xlsx)</span>
+                </a>
+                <button onclick="switchTab('staged')" id="badge-staged-btn" class="bg-amber-50 hover:bg-amber-100 transition rounded-md px-3 py-1.5 border border-amber-300 flex items-center space-x-1.5">
+                    <span class="text-amber-800 font-medium">Diff:</span>
+                    <span id="stat-staged" class="font-bold text-amber-900 bg-amber-200 rounded-full px-1.5 py-0.2">0</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Навигационные вкладки -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav class="flex space-x-8 -mb-px">
+                <button onclick="switchTab('upload')" id="tab-upload" class="tab-btn border-b-2 border-sky-600 py-3 px-1 text-sm font-medium text-sky-600 flex items-center space-x-2">
+                    <span>1. Загрузка планов</span>
+                    <span id="tab-plans-badge" class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-slate-200 text-slate-700 font-bold">0</span>
+                </button>
+                <button onclick="switchTab('disciplines')" id="tab-disciplines" class="tab-btn border-b-2 border-transparent py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 flex items-center space-x-2">
+                    <span>2. Каталог дисциплин (Единица анализа)</span>
+                    <span id="tab-disciplines-badge" class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-sky-100 text-sky-800 font-bold">0</span>
+                </button>
+                <button onclick="switchTab('conflicts')" id="tab-conflicts" class="tab-btn border-b-2 border-transparent py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 flex items-center space-x-2">
+                    <span>3. Коллизии кафедр</span>
+                    <span id="tab-conflict-badge" class="hidden ml-1 px-1.5 py-0.5 text-xs rounded-full bg-rose-500 text-white font-bold">0</span>
+                </button>
+                <button onclick="switchTab('controls')" id="tab-controls" class="tab-btn border-b-2 border-transparent py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 flex items-center space-x-2">
+                    <span>4. Формы контроля</span>
+                    <span id="tab-controls-badge" class="hidden ml-1 px-1.5 py-0.5 text-xs rounded-full bg-amber-500 text-white font-bold">0</span>
+                </button>
+                <button onclick="switchTab('similarity')" id="tab-similarity" class="tab-btn border-b-2 border-transparent py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 flex items-center space-x-2">
+                    <span>5. Анализ подобия</span>
+                </button>
+                <button onclick="switchTab('staged')" id="tab-staged" class="tab-btn border-b-2 border-transparent py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 flex items-center space-x-2">
+                    <span>6. Очередь изменений (Diff)</span>
+                    <span id="tab-staged-badge" class="hidden ml-1 px-1.5 py-0.5 text-xs rounded-full bg-amber-500 text-white font-bold">0</span>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Основной контейнер -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+
+        <!-- Вкладка 1: Загрузка планов -->
+        <section id="view-upload" class="tab-view block space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Dropzone для браузерной загрузки -->
+                <div class="bg-white p-6 rounded-xl border-2 border-dashed border-slate-300 hover:border-sky-500 transition flex flex-col items-center justify-center text-center cursor-pointer" id="drop-zone">
+                    <svg class="w-12 h-12 text-slate-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    <p class="text-sm font-semibold text-slate-700">Перетащите файлы планов сюда</p>
+                    <p class="text-xs text-slate-500 mt-1">Поддерживаются шахтинские файлы: .plx (zip), .xml</p>
+                    <label class="mt-4 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow-sm cursor-pointer transition">
+                        Выбрать файлы на компьютере
+                        <input type="file" id="file-input" multiple accept=".plx,.xml,.zip" class="hidden">
+                    </label>
+                </div>
+
+                <!-- Указание пути к локальной папке -->
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-900 mb-1">Загрузка из локального каталога</h3>
+                        <p class="text-xs text-slate-500 mb-4">Укажите абсолютный или относительный путь к директории с учебными планами на вашем диске.</p>
+                        <div class="space-y-3">
+                            <div>
+                                <label for="dir-input" class="block text-xs font-medium text-slate-700 mb-1">Путь к папке:</label>
+                                <input type="text" id="dir-input" placeholder="/Users/username/Documents/Планы" class="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="loadFromDirectory()" id="btn-load-dir" class="mt-4 w-full px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-sm transition">
+                        Сканировать и загрузить планы
+                    </button>
+                    <button onclick="loadDemoPlans()" id="btn-load-demo-panel" class="mt-2 w-full px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 text-xs font-semibold rounded-lg shadow-sm transition flex items-center justify-center space-x-1.5">
+                        <svg class="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        <span>Загрузить демонстрационные планы (demo_plans)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Список уже загруженных планов -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                    <div class="flex items-center space-x-3">
+                        <h3 class="text-sm font-semibold text-slate-800">Загруженные учебные планы (<span id="plans-table-count">0</span>)</h3>
+                        <span class="text-[11px] text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded">Пакетный режим: файлы суммируются</span>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button onclick="clearAllPlans()" id="btn-clear-plans" class="px-3 py-1.5 text-xs font-medium text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 rounded-lg transition">
+                            Очистить все планы
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200 text-left text-xs">
+                        <thead class="bg-slate-100 text-slate-600 uppercase font-semibold">
+                            <tr>
+                                <th class="px-4 py-3">Файл</th>
+                                <th class="px-4 py-3">Направление</th>
+                                <th class="px-4 py-3">Профиль</th>
+                                <th class="px-4 py-3">Уровень / Форма</th>
+                                <th class="px-4 py-3">Год начала</th>
+                                <th class="px-4 py-3 text-right">Дисциплин</th>
+                                <th class="px-4 py-3 text-center">Действие</th>
+                            </tr>
+                        </thead>
+                        <tbody id="plans-tbody" class="divide-y divide-slate-200 text-slate-700">
+                            <tr>
+                                <td colspan="7" class="px-4 py-8 text-center text-slate-400">Планы еще не загружены. Перетащите файлы или укажите папку.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Вкладка 2: Каталог дисциплин (Единица анализа) -->
+        <section id="view-disciplines" class="tab-view hidden space-y-4">
+            <!-- Панель расширенных фильтров -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 text-xs">
+                <div class="flex flex-col lg:flex-row gap-3 justify-between items-center">
+                    <div class="flex-1 w-full relative">
+                        <input type="text" id="disc-search" oninput="filterDisciplines()" placeholder="Поиск по названию дисциплины, преподавателю или кафедре..." class="w-full text-xs pl-8 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
+                        <svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                    </div>
+                    <div class="w-full lg:w-48">
+                        <select id="disc-industry-filter" onchange="filterDisciplines()" class="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
+                            <option value="">Все отрасли</option>
+                        </select>
+                    </div>
+                    <div class="w-full lg:w-48">
+                        <select id="disc-teacher-filter" onchange="filterDisciplines()" class="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
+                            <option value="">Все преподаватели</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="openRegistryModal()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg border border-slate-300 transition flex items-center space-x-1.5 whitespace-nowrap" title="Открыть справочники преподавателей и отраслей">
+                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                            <span>Справочники</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex flex-col lg:flex-row gap-3 items-center justify-between pt-1 border-t border-slate-100">
+                    <div class="flex flex-wrap gap-3 items-center w-full lg:w-auto">
+                        <div class="w-44">
+                            <select id="disc-dept-filter" onchange="filterDisciplines()" class="w-full text-xs px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
+                                <option value="">Все кафедры</option>
+                            </select>
+                        </div>
+                        <div class="w-36">
+                            <select id="disc-year-filter" onchange="filterDisciplines()" class="w-full text-xs px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
+                                <option value="">Все годы набора</option>
+                            </select>
+                        </div>
+                        <div class="w-40">
+                            <select id="disc-academic-year-filter" onchange="filterDisciplines()" class="w-full text-xs px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium">
+                                <option value="">Все учебные годы</option>
+                            </select>
+                        </div>
+                        <label class="flex items-center space-x-1.5 text-xs text-rose-700 font-medium cursor-pointer">
+                            <input type="checkbox" id="disc-conflict-only" onchange="filterDisciplines()" class="rounded border-rose-300 text-rose-600 focus:ring-rose-500">
+                            <span>Только с коллизиями</span>
+                        </label>
+                        <button onclick="resetDisciplineFilters()" class="text-xs text-slate-500 hover:text-slate-800 underline font-medium ml-1">
+                            Сбросить фильтры
+                        </button>
+                    </div>
+
+                    <div class="flex items-center space-x-3 text-xs text-slate-500">
+                        <button onclick="loadDemoPlans()" class="text-sky-700 hover:text-sky-900 font-semibold underline">
+                            + Загрузить демо-планы
+                        </button>
+                        <span>|</span>
+                        <span>Отображено дисциплин: <b id="disc-count-label" class="text-slate-800">0</b></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Список карточек дисциплин -->
+            <div id="disciplines-list" class="space-y-3">
+                <div class="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-xs">
+                    Загрузите планы для формирования каталога дисциплин.
+                </div>
+            </div>
+        </section>
+
+        <!-- Вкладка 3: Коллизии кафедр -->
+        <section id="view-conflicts" class="tab-view hidden space-y-4">
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start space-x-3 text-xs text-amber-900">
+                <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <div>
+                    <span class="font-semibold">Обнаружены коллизии:</span> В разных учебных планах одна и та же дисциплина закреплена за разными кафедрами. Вы можете в 1 клик переназначить кафедру для всех планов сразу или выборочно, изменения будут добавлены в очередь Diff.
+                </div>
+            </div>
+
+            <!-- Поиск и фильтры по коллизиям -->
+            <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-center text-xs">
+                <div class="flex-1 w-full">
+                    <input type="text" id="conflicts-search" oninput="filterConflicts()" placeholder="Поиск по названию дисциплины с коллизией..." class="w-full text-xs px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500">
+                </div>
+                <div class="w-full md:w-48">
+                    <select id="conflicts-year-filter" onchange="filterConflicts()" class="w-full text-xs px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500 bg-white">
+                        <option value="">Все годы набора</option>
+                    </select>
+                </div>
+                <div class="w-full md:w-44">
+                    <select id="conflicts-academic-year-filter" onchange="filterConflicts()" class="w-full text-xs px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500 bg-white font-medium">
+                        <option value="">Все учебные годы</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Список карточек коллизий -->
+            <div id="conflicts-container" class="space-y-4">
+                <div class="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-xs">
+                    Коллизии не обнаружены либо планы еще не загружены.
+                </div>
+            </div>
+        </section>
+
+        <!-- Вкладка 4: Формы контроля и аудит семестров -->
+        <section id="view-controls" class="tab-view hidden space-y-4">
+            <!-- Шапка и переключатель режимов контроля -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800">Анализ форм промежуточного контроля (аттестации)</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Поиск расхождений экзамен/зачет по одинаковым дисциплинам и аудит семестровой нагрузки по нормативам ФГОС.</p>
+                </div>
+                <!-- Переключатель подвкладок -->
+                <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
+                    <button onclick="switchControlSubTab('conflicts')" id="subtab-ctrl-conflicts" class="px-3 py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition">
+                        Коллизии между планами (<span id="ctrl-conflicts-count">0</span>)
+                    </button>
+                    <button onclick="switchControlSubTab('audit')" id="subtab-ctrl-audit" class="px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition">
+                        Аудит семестров ФГОС (<span id="ctrl-overloaded-count">0</span>)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Фильтры -->
+            <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-center text-xs">
+                <div class="flex-1 w-full">
+                    <input type="text" id="controls-search" oninput="filterControlTab()" placeholder="Поиск по дисциплине, направлению или плану..." class="w-full text-xs px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+                <div class="w-full md:w-44">
+                    <select id="controls-year-filter" onchange="filterControlTab()" class="w-full text-xs px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
+                        <option value="">Все годы набора</option>
+                    </select>
+                </div>
+                <div class="w-full md:w-44">
+                    <select id="controls-academic-year-filter" onchange="filterControlTab()" class="w-full text-xs px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium">
+                        <option value="">Все учебные годы</option>
+                    </select>
+                </div>
+                <div id="controls-overload-filter-wrapper" class="hidden flex items-center space-x-2 whitespace-nowrap pl-2">
+                    <label class="flex items-center space-x-1.5 cursor-pointer text-slate-700 font-medium">
+                        <input type="checkbox" id="controls-overload-only" onchange="filterControlTab()" class="rounded border-slate-300 text-rose-600 focus:ring-rose-500">
+                        <span>Только перегруженные</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Подраздел 1: Коллизии форм контроля -->
+            <div id="ctrl-view-conflicts" class="space-y-4">
+                <div id="ctrl-conflicts-container" class="space-y-4">
+                    <div class="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-xs">
+                        Коллизии форм контроля не обнаружены либо планы еще не загружены.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Подраздел 2: Аудит семестров (ФГОС) -->
+            <div id="ctrl-view-audit" class="hidden space-y-4">
+                <!-- Памятка по нормативам -->
+                <div class="bg-sky-50/70 border border-sky-200 rounded-xl p-3 flex items-center justify-between text-xs text-sky-900">
+                    <div class="flex items-center space-x-2">
+                        <span class="font-bold">Нормативы нагрузки:</span>
+                        <span>Экзаменов: не более 5 в сессию • Зачетов: не более 6 в семестр • Курсовых проектов/работ: не более 2</span>
+                    </div>
+                    <span class="text-[11px] text-sky-700 bg-white px-2 py-0.5 rounded border border-sky-200 font-medium">ФГОС ВО</span>
+                </div>
+
+                <div id="ctrl-audit-container" class="space-y-3">
+                    <div class="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-xs">
+                        Данные аудита загружаются...
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Вкладка 5: Анализ подобия дисциплин -->
+        <section id="view-similarity" class="tab-view hidden space-y-4">
+            <!-- Панель управления подобием -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
+                <div class="flex items-center space-x-3 w-full md:w-auto">
+                    <label for="similarity-slider" class="font-medium text-slate-700">Порог схожести:</label>
+                    <input type="range" id="similarity-slider" min="50" max="98" value="75" oninput="updateSimilarityThreshold(this.value)" class="w-40 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="similarity-threshold-val" class="font-bold text-sky-700 bg-sky-50 px-2 py-1 rounded border border-sky-200">75%</span>
+                </div>
+
+                <div class="flex items-center space-x-4 w-full md:w-auto">
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="sim-hidden-only" onchange="reloadSimilarities()" class="rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                        <span class="text-slate-700 font-medium">Только скрытые коллизии (разные кафедры)</span>
+                    </label>
+
+                    <button onclick="reloadSimilarities()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg shadow-sm transition">
+                        Обновить расчет
+                    </button>
+                </div>
+            </div>
+
+            <!-- Список схожих пар -->
+            <div id="similarity-container" class="space-y-3">
+                <div class="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-xs">
+                    Нажмите «Обновить расчет» для семантического анализа и поиска опечаток среди дисциплин.
+                </div>
+            </div>
+        </section>
+
+        <!-- Вкладка 5: Очередь изменений (Diff Viewer) -->
+        <section id="view-staged" class="tab-view hidden space-y-4">
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-900">Очередь подготовленных изменений (Diff)</h3>
+                    <p class="text-xs text-slate-500">Проверьте запланированные изменения перед их физической записью в файлы планов.</p>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button onclick="clearStaged()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 transition">
+                        Очистить очередь
+                    </button>
+                    <button onclick="openApplyModal()" id="btn-open-apply" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center space-x-2">
+                        <span>Применить изменения к файлам</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Таблица Diff -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200 text-left text-xs">
+                        <thead class="bg-slate-100 text-slate-600 uppercase font-semibold">
+                            <tr>
+                                <th class="px-4 py-3">Файл плана</th>
+                                <th class="px-4 py-3">Тип</th>
+                                <th class="px-4 py-3">Исходное значение</th>
+                                <th class="px-4 py-3">Новое значение</th>
+                            </tr>
+                        </thead>
+                        <tbody id="diff-tbody" class="divide-y divide-slate-200 text-slate-700">
+                            <tr>
+                                <td colspan="4" class="px-4 py-8 text-center text-slate-400">Очередь изменений пуста.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Модальное окно: Управление справочниками (Преподаватели, Отрасли, Загрузка файлов) -->
+    <div id="modal-registry" style="display: none;" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-3xl w-full p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                <div class="flex items-center space-x-2">
+                    <span class="p-1.5 rounded-lg bg-sky-100 text-sky-700 font-bold">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                    </span>
+                    <h3 class="text-base font-bold text-slate-900">Управление справочниками</h3>
+                </div>
+                <button onclick="closeModal('modal-registry')" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
+            </div>
+
+            <!-- Вкладки внутри модального окна -->
+            <div class="flex space-x-4 border-b border-slate-200 text-xs font-semibold">
+                <button onclick="switchRegistryTab('teachers')" id="reg-tab-teachers" class="py-2 border-b-2 border-sky-600 text-sky-700">Преподаватели</button>
+                <button onclick="switchRegistryTab('industries')" id="reg-tab-industries" class="py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700">Отрасли знаний</button>
+                <button onclick="switchRegistryTab('bindings')" id="reg-tab-bindings" class="py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700">Импорт связок (Excel/CSV)</button>
+            </div>
+
+            <!-- Подвкладка: Преподаватели -->
+            <div id="reg-view-teachers" class="space-y-4 flex-1 overflow-y-auto pr-1 text-xs">
+                <!-- Форма добавления и загрузки -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <div class="space-y-2">
+                        <div class="font-bold text-slate-700">Добавить вручную:</div>
+                        <input type="text" id="new-teacher-name" placeholder="ФИО преподавателя *" class="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white">
+                        <div class="flex gap-2">
+                            <input type="text" id="new-teacher-dept" placeholder="Кафедра (опционально)" class="w-1/2 px-2.5 py-1.5 border border-slate-300 rounded bg-white">
+                            <input type="text" id="new-teacher-pos" placeholder="Должность" class="w-1/2 px-2.5 py-1.5 border border-slate-300 rounded bg-white">
+                        </div>
+                        <button onclick="submitNewTeacher()" class="w-full py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded shadow-sm transition">
+                            Добавить преподавателя
+                        </button>
+                    </div>
+
+                    <div class="space-y-2 border-l border-slate-200 pl-4 flex flex-col justify-between">
+                        <div>
+                            <div class="font-bold text-slate-700">Загрузить из файла (.xlsx / .csv):</div>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Колонки: ФИО (обязательно), Кафедра, Должность.</p>
+                        </div>
+                        <input type="file" id="teachers-file-input" accept=".xlsx,.csv" class="text-xs">
+                        <button onclick="uploadTeachersFile()" class="w-full py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded shadow-sm transition">
+                            Импортировать список
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Таблица существующих преподавателей -->
+                <div class="border border-slate-200 rounded-lg overflow-hidden">
+                    <div class="bg-slate-100 px-3 py-2 font-bold text-slate-700 flex justify-between">
+                        <span>Зарегистрированные преподаватели (<span id="teachers-count">0</span>)</span>
+                    </div>
+                    <div class="max-h-56 overflow-y-auto">
+                        <table class="min-w-full divide-y divide-slate-200 text-left text-xs">
+                            <tbody id="teachers-tbody" class="divide-y divide-slate-100 text-slate-700">
+                                <!-- Список -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Подвкладка: Отрасли -->
+            <div id="reg-view-industries" class="hidden space-y-4 flex-1 overflow-y-auto pr-1 text-xs">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <div class="space-y-2">
+                        <div class="font-bold text-slate-700">Добавить отрасль вручную:</div>
+                        <input type="text" id="new-industry-name" placeholder="Название отрасли (напр., Юриспруденция) *" class="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white">
+                        <input type="text" id="new-industry-desc" placeholder="Описание (опционально)" class="w-full px-2.5 py-1.5 border border-slate-300 rounded bg-white">
+                        <button onclick="submitNewIndustry()" class="w-full py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded shadow-sm transition">
+                            Добавить отрасль
+                        </button>
+                    </div>
+
+                    <div class="space-y-2 border-l border-slate-200 pl-4 flex flex-col justify-between">
+                        <div>
+                            <div class="font-bold text-slate-700">Загрузить из файла (.xlsx / .csv):</div>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Колонки: Отрасль/Название, Описание.</p>
+                        </div>
+                        <input type="file" id="industries-file-input" accept=".xlsx,.csv" class="text-xs">
+                        <button onclick="uploadIndustriesFile()" class="w-full py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded shadow-sm transition">
+                            Импортировать отрасли
+                        </button>
+                    </div>
+                </div>
+
+                <div class="border border-slate-200 rounded-lg overflow-hidden">
+                    <div class="bg-slate-100 px-3 py-2 font-bold text-slate-700">
+                        <span>Справочник отраслей (<span id="industries-count">0</span>)</span>
+                    </div>
+                    <div class="max-h-56 overflow-y-auto">
+                        <table class="min-w-full divide-y divide-slate-200 text-left text-xs">
+                            <tbody id="industries-tbody" class="divide-y divide-slate-100 text-slate-700">
+                                <!-- Список -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Подвкладка: Импорт связок -->
+            <div id="reg-view-bindings" class="hidden space-y-4 flex-1 overflow-y-auto pr-1 text-xs">
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3">
+                    <h4 class="font-bold text-slate-800">Пакетный импорт привязок «Дисциплина — Отрасль — Преподаватели»</h4>
+                    <p class="text-slate-600 leading-relaxed">
+                        Загрузите файл Excel (.xlsx) или CSV, содержащий столбцы:
+                        <br><b>Дисциплина</b> (название курса) | <b>Отрасль</b> (название) | <b>Преподаватели</b> (ФИО через запятую).
+                    </p>
+                    <input type="file" id="bindings-file-input" accept=".xlsx,.csv" class="text-xs block">
+                    <button onclick="uploadBindingsFile()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded shadow-sm transition">
+                        Импортировать связки
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-3 border-t border-slate-200">
+                <button onclick="closeModal('modal-registry')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">
+                    Закрыть
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Привязка дисциплины к отрасли и преподавателям -->
+    <div id="modal-discipline-bind" style="display: none;" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4">
+            <div class="flex justify-between items-start border-b border-slate-200 pb-3">
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-sky-600 bg-sky-50 px-2 py-0.5 rounded">Настройка дисциплины</span>
+                    <h3 class="text-base font-bold text-slate-900 mt-1" id="modal-bind-disc-title">Дисциплина</h3>
+                </div>
+                <button onclick="closeModal('modal-discipline-bind')" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+            </div>
+
+            <div class="space-y-4 text-xs">
+                <!-- Отрасль -->
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Отрасль знаний:</label>
+                    <div class="flex gap-2">
+                        <select id="modal-bind-industry" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                            <option value="">-- Не указана --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Преподаватели (мультивыбор) -->
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="font-semibold text-slate-700">Преподаватели курса:</label>
+                        <span class="text-[11px] text-slate-400">Отметьте одного или нескольких</span>
+                    </div>
+                    <div id="modal-bind-teachers-list" class="max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-2 space-y-1.5 bg-slate-50/50">
+                        <!-- Список чекбоксов преподавателей -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-3 border-t border-slate-200">
+                <button onclick="closeModal('modal-discipline-bind')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">
+                    Отмена
+                </button>
+                <button onclick="saveDisciplineBinding()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow-sm transition">
+                    Сохранить привязку
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Разрешение коллизии / Переназначение кафедры -->
+    <div id="modal-dept-picker" style="display: none;" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full p-6 space-y-4">
+            <h3 class="text-base font-semibold text-slate-900" id="modal-dept-title">Закрепление дисциплины за кафедрой</h3>
+            <p class="text-xs text-slate-500" id="modal-dept-desc"></p>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Целевая кафедра:</label>
+                    <select id="modal-dept-select" class="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
+                        <!-- Заполняется динамически -->
+                    </select>
+                </div>
+                <div class="pt-2">
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Область применения:</label>
+                    <div class="space-y-1.5 text-xs text-slate-700">
+                        <label class="flex items-center space-x-2">
+                            <input type="radio" name="modal-scope" value="all" checked class="text-sky-600">
+                            <span>Во всех планах, где встречается данная дисциплина</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-3 border-t border-slate-200">
+                <button onclick="closeModal('modal-dept-picker')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">
+                    Отмена
+                </button>
+                <button onclick="confirmStageDeptChange()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow-sm transition">
+                    Добавить в очередь изменений
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Унификация названий схожих дисциплин -->
+    <div id="modal-unify" style="display: none;" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full p-6 space-y-4">
+            <h3 class="text-base font-semibold text-slate-900">Унификация схожих дисциплин</h3>
+            <p class="text-xs text-slate-500">Приведите варианты названий к единому каноническому виду и при необходимости синхронизируйте кафедру.</p>
+
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Выберите каноническое название:</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center space-x-2 p-2 rounded border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                            <input type="radio" name="modal-canonical-title" id="unify-opt-a" value="" class="text-sky-600">
+                            <span id="unify-label-a" class="font-medium"></span>
+                        </label>
+                        <label class="flex items-center space-x-2 p-2 rounded border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                            <input type="radio" name="modal-canonical-title" id="unify-opt-b" value="" class="text-sky-600">
+                            <span id="unify-label-b" class="font-medium"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Закрепить за кафедрой (опционально):</label>
+                    <select id="modal-unify-dept-select" class="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
+                        <option value="">-- Оставить кафедры без изменений --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-3 border-t border-slate-200">
+                <button onclick="closeModal('modal-unify')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">
+                    Отмена
+                </button>
+                <button onclick="confirmStageUnifyChange()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-sm transition">
+                    Унифицировать
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Подтверждение применения изменений к файлам -->
+    <div id="modal-apply-confirm" style="display: none;" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full p-6 space-y-4">
+            <h3 class="text-base font-semibold text-slate-900">Сохранение изменений в файлы</h3>
+            <p class="text-xs text-slate-500">Выберите способ сохранения модифицированных файлов планов.</p>
+
+            <div class="space-y-3 text-xs">
+                <div class="space-y-2">
+                    <label class="flex items-start space-x-2 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                        <input type="radio" name="apply-mode" value="backup" checked onchange="toggleApplyOutputDir(false)" class="mt-0.5 text-sky-600">
+                        <div>
+                            <span class="font-semibold text-slate-900 block">Перезаписать оригиналы с резервной копией (.bak)</span>
+                            <span class="text-slate-500 text-xs">Для каждого измененного файла будет создан бэкап: имя_файла.plx.bak</span>
+                        </div>
+                    </label>
+
+                    <label class="flex items-start space-x-2 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                        <input type="radio" name="apply-mode" value="output" onchange="toggleApplyOutputDir(true)" class="mt-0.5 text-sky-600">
+                        <div>
+                            <span class="font-semibold text-slate-900 block">Сохранить в отдельную папку</span>
+                            <span class="text-slate-500 text-xs">Исходные файлы останутся нетронутыми, модифицированные сохранятся в указанный каталог.</span>
+                        </div>
+                    </label>
+                </div>
+
+                <div id="apply-output-dir-box" class="hidden pt-1">
+                    <label class="block font-medium text-slate-700 mb-1">Выходная директория:</label>
+                    <input type="text" id="apply-output-dir" placeholder="/Users/username/Modified_Plans" class="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-3 border-t border-slate-200">
+                <button onclick="closeModal('modal-apply-confirm')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">
+                    Отмена
+                </button>
+                <button onclick="executeApplyChanges()" id="btn-execute-apply" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-sm transition">
+                    Записать изменения
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Индикатор загрузки (Toast / Spinner) -->
+    <div id="loading-overlay" class="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-[2px] hidden flex flex-col items-center justify-center">
+        <div class="bg-white px-6 py-4 rounded-xl shadow-lg border border-slate-200 flex items-center space-x-3 text-xs font-semibold text-slate-800">
+            <svg class="animate-spin h-5 w-5 text-sky-600" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span id="loading-text">Выполняется обработка...</span>
+        </div>
+    </div>
+
+    <script src="/static/app.js?v=3.0.0"></script>
+</body>
+</html>
