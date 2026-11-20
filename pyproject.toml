@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plan-analyzer"
+version = "0.1.0"
+description = "Пакетный анализ учебных планов (Шахты PLX/XML), реестр пар 'дисциплина-кафедра', поиск коллизий, семантическое подобие и локальный веб-интерфейс"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+    "python-multipart>=0.0.6",
+    "rapidfuzz>=3.0.0",
+    "fastembed>=0.2.0",
+    "jinja2>=3.1.0",
+    "pydantic>=2.0.0",
+    "openpyxl>=3.1.0",
+    "pywebview>=5.0.0",
+    "pyinstaller>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[project.scripts]
+plan-analyzer = "plan_analyzer.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["plan_analyzer*", "curriculum_parser*"]

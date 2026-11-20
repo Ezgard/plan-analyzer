@@ -1,0 +1,15 @@
+# Pure Python Standard Library Runtime: 0 external dependencies required for execution.
+# Python 3.9+ standard library modules used:
+# - xml.etree.ElementTree
+# - zipfile
+# - gzip
+# - io
+# - re
+# - functools
+# - dataclasses
+# - collections
+# - typing
+# - json
+
+# Development and testing dependencies (optional):
+# pytest>=7.0
