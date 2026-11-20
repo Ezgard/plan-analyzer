@@ -4,6 +4,10 @@
 import os
 import sys
 
+# Если процесс запущен в read-only корне '/', переключаемся на домашнюю директорию
+if os.getcwd() == "/":
+    os.chdir(os.path.expanduser("~"))
+
 # Обеспечиваем доступность корневой директории в sys.path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:

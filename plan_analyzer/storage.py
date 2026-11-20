@@ -3,6 +3,7 @@
 Поддерживает ручное управление, загрузку из Excel (.xlsx) и CSV, а также экспорт в Excel.
 """
 import os
+import sys
 import io
 import csv
 import json
@@ -18,11 +19,42 @@ def generate_short_id() -> str:
     return uuid.uuid4().hex[:8]
 
 
+def get_default_storage_path() -> str:
+    """Определяет безопасный путь для хранения данных приложения с защитой от read-only ФС."""
+    env_path = os.environ.get("PLAN_ANALYZER_STORAGE_PATH")
+    if env_path:
+        return env_path
+
+    cwd = os.getcwd()
+    if cwd != "/" and os.access(cwd, os.W_OK):
+        local_data_dir = os.path.join(cwd, "data")
+        try:
+            os.makedirs(local_data_dir, exist_ok=True)
+            return os.path.join(local_data_dir, "registry_store.json")
+        except OSError:
+            pass
+
+    if sys.platform == "darwin":
+        app_support = os.path.expanduser("~/Library/Application Support/PlanAnalyzer")
+    elif sys.platform == "win32":
+        app_support = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "PlanAnalyzer")
+    else:
+        app_support = os.path.expanduser("~/.local/share/plan_analyzer")
+
+    try:
+        os.makedirs(app_support, exist_ok=True)
+        return os.path.join(app_support, "registry_store.json")
+    except OSError:
+        # Резервный путь во временной директории
+        import tempfile
+        return os.path.join(tempfile.gettempdir(), "plan_analyzer_registry_store.json")
+
+
 class RegistryStorage:
     """Хранилище справочников преподавателей, отраслей и связей с дисциплинами."""
 
-    def __init__(self, storage_path: str = "data/registry_store.json"):
-        self.storage_path = storage_path
+    def __init__(self, storage_path: Optional[str] = None):
+        self.storage_path = storage_path or get_default_storage_path()
         self.teachers: Dict[str, Teacher] = {}
         self.industries: Dict[str, Industry] = {}
         self.discipline_bindings: Dict[str, Dict[str, Any]] = {}
@@ -30,6 +62,18 @@ class RegistryStorage:
 
     def _load(self):
         """Загрузка данных из JSON-файла."""
+        if not os.path.exists(self.storage_path):
+            # Проверяем, есть ли упакованный начальный файл в PyInstaller
+            if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+                bundled_candidate = os.path.join(sys._MEIPASS, "data", "registry_store.json")
+                if os.path.isfile(bundled_candidate):
+                    try:
+                        os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
+                        import shutil
+                        shutil.copyfile(bundled_candidate, self.storage_path)
+                    except Exception:
+                        pass
+
         if not os.path.exists(self.storage_path):
             self._init_defaults()
             return

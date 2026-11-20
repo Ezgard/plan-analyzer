@@ -30,7 +30,7 @@ from plan_analyzer.storage import RegistryStorage
 class PlanService:
     """Сервис управления сессией анализа и редактирования планов."""
 
-    def __init__(self, storage_path: str = "data/registry_store.json"):
+    def __init__(self, storage_path: Optional[str] = None):
         self.analyzer = PlanAnalyzer()
         self.similarity_engine = DisciplineSimilarityEngine()
         self.storage = RegistryStorage(storage_path=storage_path)
